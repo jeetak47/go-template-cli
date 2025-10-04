@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 	"text/template"
 
@@ -25,6 +26,8 @@ type commandLine struct {
 	templateName        string
 	options             []string
 	decoder             decoder
+	dataFile            string
+	outputFile          string
 	noNewline           bool
 	showVersion         bool
 
@@ -52,6 +55,8 @@ func New(tag string, fs *pflag.FlagSet) *commandLine {
 	fs.StringVarP(&cli.templateName, "name", "n", cli.templateName, "if specified, execute the template with the given name")
 	fs.VarP(&cli.decoder, "decoder", "d", "decoder to use for input data. Supported values: json, yaml, toml (default \"json\")")
 	fs.StringArrayVar(&cli.options, "option", cli.options, "option to pass to the template engine. Can be specified multiple times")
+	fs.StringVar(&cli.dataFile, "data-file", cli.dataFile, "path to file containing input data; overrides stdin when set")
+	fs.StringVarP(&cli.outputFile, "output-file", "o", cli.outputFile, "file path to write output; defaults to stdout")
 	fs.BoolVar(&cli.noNewline, "no-newline", cli.noNewline, "do not print newline at the end of the output")
 	fs.BoolVar(&cli.showVersion, "version", cli.showVersion, "show version information and exit")
 
@@ -69,9 +74,29 @@ func (cli *commandLine) Run(args []string, r io.Reader, w io.Writer) (err error)
 		return nil
 	}
 
+	// if a data file is specified, prefer it over stdin
+	if cli.dataFile != "" {
+		f, err := os.Open(cli.dataFile)
+		if err != nil {
+			return fmt.Errorf("open data file: %w", err)
+		}
+		defer f.Close()
+		r = f
+	}
+
 	data, err := cli.decode(r)
 	if err != nil {
 		return fmt.Errorf("decode: %w", err)
+	}
+
+	// if an output file is specified, write there instead of stdout
+	if cli.outputFile != "" {
+		f, err := os.OpenFile(cli.outputFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
+		if err != nil {
+			return fmt.Errorf("open output file: %w", err)
+		}
+		defer f.Close()
+		w = f
 	}
 
 	if err := cli.render(w, data); err != nil {

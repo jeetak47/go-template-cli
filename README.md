@@ -16,21 +16,27 @@ Usage: tpl [options] [templates]
   -n, --name string          if specified, execute the template with the given name
   -d, --decoder func         decoder to use for input data. Supported values: json, yaml, toml (default "json")
       --option stringArray   option to pass to the template engine. Can be specified multiple times
+      --data-file string     path to file containing input data; overrides stdin when set
+  -o,  --output-file string   file path to write output; defaults to stdout
       --no-newline           do not print newline at the end of the output
       --version              show version information and exit
 ```
 
 ## Input Data
 
-The input data is read from stdin via pipe or redirection. It is
+The input data is read from stdin via pipe or redirection, or from a file via the --data-file option. It is
 actually not required to provide any input data. If no input data is
-provided, the template is executed with nil data.
+provided, the template is executed with nil data. If both stdin and --data-file are provided, the file takes precedence.
 
 ```bash
 # Redirection
 tpl '{{ . }}' < path/to/input.json
 # Pipe
 curl localhost | tpl '{{ . }}'
+# From file (overrides stdin)
+tpl --decoder=json --data-file path/to/input.json '{{ . }}'
+# Write output to a file
+tpl --decoder=json --data-file path/to/input.json --output-file out.txt '{{ . }}'
 # nil data
 tpl '{{ . }}'
 ```

@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"io"
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -102,6 +103,12 @@ func Test_state_run(t *testing.T) {
 			wantErrorMatch: `unsupported decoder "yikes"`,
 		},
 		{
+			name:       "data-file overrides stdin",
+			giveInput:  `{"fruits": {"mango": "nope"}}`,
+			giveArgs:   []string{"--decoder=json", "--data-file", "testdata/data.json", `{{.fruits.mango}}`},
+			wantOutput: "yummy\n",
+		},
+		{
 			name:       "parse file with equal flag",
 			giveInput:  `{"fruits": {"mango": "yummy"}}`,
 			giveArgs:   []string{"--file=testdata/mango.tpl"},
@@ -165,5 +172,33 @@ func Test_state_run(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func Test_output_file(t *testing.T) {
+	t.Parallel()
+	// Arrange
+	tmp := t.TempDir()
+	outPath := tmp + "/out.txt"
+	args := []string{"--decoder=json", "--data-file", "testdata/data.json", "--output-file", outPath, `{{.fruits.mango}}`}
+
+	// Act
+	buf := &bytes.Buffer{}
+	err := New("test", pflag.NewFlagSet("output-file", pflag.ContinueOnError)).Run(args, nil, buf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Assert: output buffer should be empty because we wrote to file
+	if buf.String() != "" {
+		t.Fatalf("expected no stdout output, got %q", buf.String())
+	}
+
+	got, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("reading output file: %v", err)
+	}
+	if string(got) != "yummy\n" {
+		t.Fatalf("wrong file output: got %q want %q", string(got), "yummy\n")
 	}
 }
